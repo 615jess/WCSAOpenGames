@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A single-file static web app (`index.html`) that displays a public "open games" board for **WCSA — the Middle Tennessee Soccer Alliance**.
 
-**This is a copy of the TSL board (`615jess/TSLOpenGames`), not a fork with its own logic.** The only intended differences are the `<title>`, the header `<h1>`/subtitle, and the `CONFIG` block (its own Apps Script `/exec` URL, and the WCSA contact: 615jess@gmail.com / 615-544-5377). To bring a TSL board change across, copy TSL's `index.html` over this one and re-apply those three spots. The Apps Script behind it runs the **same** code as TSL's but is a separate project bound to a separate Sheet, with its own `WRITE_TOKEN`/`ADMIN_TOKEN` — so a request made here never lands in TSL's queue.
+**This is a copy of the TSL board (`615jess/TSLOpenGames`), not a fork with its own logic.** The only intended differences are the `<title>`, the header `<h1>`/subtitle, the **instructions banner** (three steps, ending "reviewed … posted in Assignr" — WCSA dropped TSL's "make a note of the screen" step), and the `CONFIG` block (its own Apps Script `/exec` URL, and the WCSA contact: 615jess@gmail.com / 615-544-5377). To bring a TSL board change across, copy TSL's `index.html` over this one and re-apply those spots. The Apps Script behind it runs the **same** code as TSL's but is a separate project bound to a separate Sheet, with its own `WRITE_TOKEN`/`ADMIN_TOKEN` — so a request made here never lands in TSL's queue.
 
 Referees browse uncovered game slots, select one or more, and request them.
 
