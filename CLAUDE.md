@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A single-file static web app (`index.html`) that displays a public "open games" board for **WCSA — the Middle Tennessee Soccer Alliance**.
 
-**This is a copy of the TSL board (`615jess/TSLOpenGames`), not a fork with its own logic.** The only intended differences are the `<title>`, the header `<h1>`/subtitle, the **instructions banner** (three steps, ending "reviewed … posted in Assignr" — WCSA dropped TSL's "make a note of the screen" step), and the `CONFIG` block (its own Apps Script `/exec` URL, and the WCSA contact: 615jess@gmail.com / 615-544-5377). To bring a TSL board change across, copy TSL's `index.html` over this one and re-apply those spots. The Apps Script behind it runs the **same** code as TSL's but is a separate project bound to a separate Sheet, with its own `WRITE_TOKEN`/`ADMIN_TOKEN` — so a request made here never lands in TSL's queue.
+**This is a copy of the TSL board (`615jess/TSLOpenGames`), not a fork with its own logic.** The only intended differences are the `<title>`, the header `<h1>`/subtitle, the **instructions banner** (three steps, ending "reviewed … posted in Assignr" — WCSA dropped TSL's "make a note of the screen" step), and the `CONFIG` block (its own Apps Script `/exec` URL, and the WCSA contact: 615jess@gmail.com / 615-544-5377). To bring a TSL board change across, copy TSL's `index.html` over this one and re-apply those spots. `speed.html` is copied the same way; its only differences are the `<title>` and the `CONFIG` block. The Apps Script behind it runs the **same** code as TSL's but is a separate project bound to a separate Sheet, with its own `WRITE_TOKEN`/`ADMIN_TOKEN` — so a request made here never lands in TSL's queue.
 
 Referees browse uncovered game slots, select one or more, and request them.
 
@@ -44,6 +44,10 @@ Data flow:
 - The script decides what auto-confirms (younger-age AR slots) and what waits for the assignor. The board only reports what came back — **do not reimplement that rule here**, it lives in the Apps Script.
 - **The instructions banner describes the on-board path, not the fallback.** It also states that a referee's name and email are **recorded with the request** — they are, on the Sheet. The old wording promised the opposite ("not stored or shared online"), which stopped being true the moment requests were recorded; if the storage model changes again, that line changes with it.
 - **There is no confirmation email, by design** — one mail per request was too much mail. The modal is therefore the referee's only record, and it must say so. It also reports the game the script **allocated**, taken from the response, not the card that was clicked: several near-identical games can be advertised as one listing, so the game number and even the field that come back may differ from what is on screen.
+
+## `speed.html` — speed request
+
+A copy of TSL's `speed.html` (brought across 2026-10-21; it had been missed when this board was made). **Referee-facing text says "request", never "claim"**; internal names — the `Speed Claim` tab, `action:'claim'`, `speed:true` — are unchanged. The page carries an always-visible notice that a request does not guarantee the spot and is only confirmed by an Assignr assignment; keep it visible. It reads `?speed=1` (the `Speed Claim` tab with live holds subtracted, plus a nonce), refreshes every 20 s, and POSTs `{action:'claim', speed:true, ...}`. Name/email are remembered in `localStorage` (guarded). Every request holds its slot and waits for the assignor — the script decides, the page only reports. Same `CONFIG.apiUrl` as this board's `index.html`. The assignor tool's **⚡ Push to Speed Request** links here.
 
 ## Deployment
 

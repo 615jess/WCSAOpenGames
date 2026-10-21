@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Speed Request — WCSA</title>
+<!--
+  Speed request (internally "speed claim" — the Sheet tab, the script and the assignor's
+  tool still use that name; only referee-facing text says "request"): the lean, one-tap
+  sibling of index.html, for games that need covering NOW
+  (moved times and venues the day before). It reads the board's "Speed Claim" tab through
+  the same Apps Script (?speed=1), and every claim HOLDS its slot immediately and waits
+  for the assignor, who approves it, moves the referee to another game, or kicks it back
+  (which puts it straight back on this page). The rules live in the script — this page
+  only reports what comes back.
+-->
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&display=swap');
+
+  :root {
+    --bg: #f5f7fa; --surface: #ffffff; --surface2: #eef1f6; --border: #dde2ea;
+    --accent: #1a5fb4; --ok: #2a9d5c; --warn: #b45309; --danger: #dc2626;
+    --text: #1a1f2e; --text2: #4b5563; --text3: #9ca3af;
+    --cr: #b45309; --ar: #1d4ed8; --speed: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Sora', sans-serif; background: var(--bg); color: var(--text); padding-bottom: 60px; }
+
+  header {
+    background: var(--surface); border-bottom: 3px solid var(--speed);
+    padding: 14px 16px; position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .logo { width: 34px; height: 34px; border-radius: 8px; background: var(--speed); display: flex;
+          align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  header h1 { font-size: 1rem; font-weight: 700; }
+  header p { font-size: 0.72rem; color: var(--text2); }
+  #status { margin-left: auto; font-size: 0.68rem; color: var(--text3); text-align: right; white-space: nowrap; }
+
+  main { max-width: 720px; margin: 0 auto; padding: 12px 16px; }
+
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+  .who { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .who input { width: 100%; font: inherit; font-size: 0.9rem; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
+  .who-saved { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.85rem; }
+  .link { background: none; border: none; color: var(--accent); font: inherit; font-size: 0.8rem; cursor: pointer; text-decoration: underline; }
+  .hint { font-size: 0.75rem; color: var(--text2); margin-top: 8px; line-height: 1.4; }
+
+  #mine:empty { display: none; }
+  .mine-item { font-size: 0.82rem; padding: 6px 0; border-top: 1px solid var(--surface2); }
+  .mine-item:first-of-type { border-top: none; }
+
+  .day { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+         color: var(--text2); margin: 18px 0 6px; }
+  .venue { font-size: 0.95rem; font-weight: 700; margin: 10px 0 6px; }
+
+  .game { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+          padding: 10px 12px; margin-bottom: 8px; display: flex; gap: 12px; align-items: center; }
+  .game .when { font-size: 1.05rem; font-weight: 700; min-width: 74px; }
+  .game .info { flex: 1; min-width: 0; font-size: 0.8rem; color: var(--text2); line-height: 1.4; }
+  .game .info strong { color: var(--text); }
+  .claims { display: flex; flex-direction: column; gap: 6px; }
+
+  .btn { font: inherit; font-weight: 700; font-size: 0.85rem; border: none; border-radius: 8px;
+         padding: 11px 14px; cursor: pointer; color: #fff; min-width: 120px; }
+  .btn.cr { background: var(--cr); }
+  .btn.ar { background: var(--ar); }
+  .btn:disabled { opacity: 0.6; cursor: wait; }
+  .result { font-size: 0.78rem; font-weight: 600; padding: 8px 10px; border-radius: 8px; min-width: 120px; text-align: center; }
+  .result.ok { background: #e7f6ee; color: var(--ok); }
+  .result.bad { background: #fde8e8; color: var(--danger); }
+
+  .empty { text-align: center; padding: 40px 10px; color: var(--text2); font-size: 0.9rem; }
+  .notice { background: #fff7e6; border: 1px solid #f5d38a; border-radius: 10px; padding: 12px;
+            margin-bottom: 12px; font-size: 0.82rem; line-height: 1.5; color: var(--text); }
+  .notice strong { color: var(--warn); }
+  .err { background: #fde8e8; color: var(--danger); border-radius: 10px; padding: 12px; font-size: 0.85rem; margin-bottom: 12px; }
+
+  @media (max-width: 520px) {
+    .who { grid-template-columns: 1fr; }
+    .game { flex-wrap: wrap; }
+    .claims { flex-direction: row; width: 100%; }
+    .claims > * { flex: 1 1 0; min-width: 0; }
+    #status { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">⚡</div>
+  <div>
+    <h1>Speed Request</h1>
+    <p id="subtitle">Games that need covering now — tap to request</p>
+  </div>
+  <div id="status">loading…</div>
+</header>
+
+<main>
+  <!-- Deliberately always visible, not tucked into the first-run panel: it applies to every
+       tap, and the referees who most need it are the ones who have already saved a name. -->
+  <div class="notice">
+    <strong>A request does not guarantee the spot.</strong> Requests are confirmed through
+    your <strong>Assignr assignments</strong> — if it isn't in Assignr, you don't have it.
+    To help me fill these quickly, please stick to games at the level I'd normally assign
+    you — thank you!
+  </div>
+  <div class="panel" id="whoPanel"></div>
+  <div class="panel" id="mine"></div>
+  <div id="error"></div>
+  <div id="list"></div>
+</main>
+
+<script>
+// Same /exec URL and contact as index.html. When copying to the WCSA board, change these.
+const CONFIG = {
+  apiUrl:        'https://script.google.com/macros/s/AKfycbybKRTyX9kwUz_zp0SiGHoKe1IonDhWYknS37FI1ndC5T8hjVVOtRq_7kYsOd4jxCiN/exec',
+  assignorEmail: '615jess@gmail.com',
+  assignorPhone: '6155445377',
+  title:         'WCSA Speed Request',
+};
+const REFRESH_MS = 20000;
+// The same 90 minutes the assignor's tools treat as the legal gap between two games.
+const MIN_GAP_MIN = 90;
+
+let games = [];
+let nonce = null;
+let loading = false;
+// Per-listing outcome shown in place of the button: key → { ok, text }.
+const outcomes = new Map();
+
+// ── Storage: name/email and this device's claims. Every access guarded — storage can throw
+// in a private window, and the page must still work without it.
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* not fatal */ } },
+};
+let me = store.get('speed.me', { name: '', email: '' });
+let editingMe = !me.name || !me.email;
+// Only for the "your claims" strip and the clash warning — the Sheet is the record.
+let mine = store.get('speed.mine', []).filter(c => Date.now() - (c.at || 0) < 3 * 86400000);
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// "MM/dd/yyyy HH:mm", built with the LOCAL constructor so a time never shifts by a zone.
+function parseWhen(s) {
+  const m = String(s || '').match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{1,2}):(\d{2})/);
+  return m ? new Date(+m[3], +m[1] - 1, +m[2], +m[4], +m[5]) : null;
+}
+function fmtTime(d) { return d ? d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''; }
+function fmtDay(d) { return d ? d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : 'Date TBD'; }
+function validEmail(s) { return /^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(String(s || '').trim()); }
+
+// ── Who is claiming ────────────────────────────────────────────────────────────
+function renderWho() {
+  const el = document.getElementById('whoPanel');
+  if (!editingMe) {
+    el.innerHTML = `<div class="who-saved"><span>Requesting as <strong>${esc(me.name)}</strong> · ${esc(me.email)}</span>
+      <button class="link" id="changeMe">change</button></div>`;
+    document.getElementById('changeMe').onclick = () => { editingMe = true; renderWho(); };
+    return;
+  }
+  el.innerHTML = `<div class="who">
+      <input id="meName" placeholder="Your full name" autocomplete="name" value="${esc(me.name)}">
+      <input id="meEmail" placeholder="Email you use in Assignr" type="email" autocomplete="email" value="${esc(me.email)}">
+    </div>
+    <p class="hint">Enter once — it's remembered on this device. A request takes the game off this
+      page while I review it; I'll either assign you in Assignr, move you to another game, or put it
+      back up. Your name and email are recorded with each request.</p>`;
+  const save = () => {
+    const name = document.getElementById('meName').value.trim();
+    const email = document.getElementById('meEmail').value.trim().toLowerCase();
+    me = { name, email };
+    store.set('speed.me', me);
+  };
+  document.getElementById('meName').oninput = save;
+  document.getElementById('meEmail').oninput = save;
+}
+
+function renderMine() {
+  const el = document.getElementById('mine');
+  if (!mine.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<div style="font-size:0.8rem;font-weight:700;margin-bottom:4px;">Your requests on this device</div>` +
+    mine.slice().reverse().map(c => `<div class="mine-item">⏳ requested · ${esc(c.text)}</div>`).join('') +
+    `<p class="hint">Not confirmed until it shows up in your Assignr assignments.</p>`;
+}
+
+// ── Load ───────────────────────────────────────────────────────────────────────
+async function load() {
+  if (loading) return;
+  loading = true;
+  try {
+    const res = await fetch(CONFIG.apiUrl + '?speed=1&t=' + Date.now());
+    const out = await res.json();
+    if (!out.ok) throw new Error(out.error || 'bad response');
+    games = out.games || [];
+    nonce = out.nonce || nonce;
+    document.getElementById('error').innerHTML = '';
+    document.getElementById('status').textContent = 'updated ' + fmtTime(new Date());
+    render();
+  } catch (err) {
+    document.getElementById('error').innerHTML = `<div class="err">Can't reach the list right now (${esc(err.message)}).
+      It will retry. If it keeps failing, text <a href="sms:${CONFIG.assignorPhone}">${CONFIG.assignorPhone}</a>.</div>`;
+    document.getElementById('status').textContent = 'offline';
+  } finally {
+    loading = false;
+  }
+}
+
+function keyOf(g) { return String(g['Game Key']) + '|' + String(g['Open Roles']).toUpperCase(); }
+
+function render() {
+  const list = document.getElementById('list');
+  // Keep listings this device just claimed visible with their outcome, even though the
+  // refresh no longer returns them — otherwise a successful claim would vanish silently.
+  const shown = games.slice();
+  for (const [k, o] of outcomes) {
+    if (!shown.some(g => keyOf(g) === k) && o.game) shown.push(o.game);
+  }
+  if (!shown.length) {
+    list.innerHTML = `<div class="empty">Nothing to request right now. 🎉<br>This page refreshes itself — leave it open.</div>`;
+    return;
+  }
+
+  // One card per GAME (a game can need a centre and an AR), grouped day → venue → time.
+  const byGame = new Map();
+  for (const g of shown) {
+    const k = String(g['Game Key']);
+    if (!byGame.has(k)) byGame.set(k, { g, roles: [] });
+    byGame.get(k).roles.push(g);
+  }
+  const cards = [...byGame.values()].map(x => Object.assign(x, { when: parseWhen(x.g['Start Date/Time']) }))
+    .sort((a, b) => ((a.when ? a.when.getTime() : 0) - (b.when ? b.when.getTime() : 0))
+      || String(a.g.Venue).localeCompare(String(b.g.Venue)));
+
+  let html = '', lastDay = '', lastVenue = '';
+  for (const c of cards) {
+    const day = fmtDay(c.when);
+    if (day !== lastDay) { html += `<div class="day">${esc(day)}</div>`; lastDay = day; lastVenue = ''; }
+    if (c.g.Venue !== lastVenue) { html += `<div class="venue">📍 ${esc(c.g.Venue)}</div>`; lastVenue = c.g.Venue; }
+    const roles = c.roles.sort((a, b) => (a['Open Roles'] === 'CR' ? -1 : 1) - (b['Open Roles'] === 'CR' ? -1 : 1));
+    html += `<div class="game">
+      <div class="when">${esc(fmtTime(c.when))}</div>
+      <div class="info">
+        <strong>${esc(c.g['Age Group'])}</strong>${c.g.Field ? ' · field ' + esc(c.g.Field) : ''}<br>
+        ${esc(c.g.Home)}${c.g.Away ? ' v ' + esc(c.g.Away) : ''}<br>
+        <span style="color:var(--text3);">game #${esc(c.g['Match ID'])}</span>
+      </div>
+      <div class="claims">${roles.map(r => {
+        const k = keyOf(r);
+        const o = outcomes.get(k);
+        if (o) return `<div class="result ${o.ok ? 'ok' : 'bad'}">${esc(o.short)}</div>`;
+        const cr = String(r['Open Roles']).toUpperCase() === 'CR';
+        const slots = Number(r.Slots) || 1;
+        const fee = r.Fee ? ' · ' + esc(r.Fee) : '';
+        return `<button class="btn ${cr ? 'cr' : 'ar'}" data-k="${esc(k)}">Request ${cr ? 'Referee' : 'AR'}${slots > 1 ? ' (' + slots + ')' : ''}${fee}</button>`;
+      }).join('')}</div>
+    </div>`;
+  }
+  list.innerHTML = html;
+  list.querySelectorAll('button[data-k]').forEach(b => { b.onclick = () => claim(b.dataset.k, b); });
+}
+
+// ── Claim ──────────────────────────────────────────────────────────────────────
+function clashWith(when) {
+  if (!when) return null;
+  return mine.find(c => c.whenMs && Math.abs(c.whenMs - when.getTime()) / 60000 < MIN_GAP_MIN) || null;
+}
+
+async function claim(k, btn) {
+  const g = games.find(x => keyOf(x) === k);
+  if (!g) return;
+  if (!me.name || !validEmail(me.email)) {
+    editingMe = true; renderWho();
+    alert('Enter your name and the email you use in Assignr first.');
+    document.getElementById('meName').focus();
+    return;
+  }
+  editingMe = false; renderWho();
+
+  const when = parseWhen(g['Start Date/Time']);
+  const clash = clashWith(when);
+  if (clash && !confirm(`That's within ${MIN_GAP_MIN} minutes of a game you already requested:\n${clash.text}\n\nRequest it anyway?`)) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Requesting…';
+  let out;
+  try {
+    if (!nonce) await load();
+    const res = await fetch(CONFIG.apiUrl, {
+      method: 'POST',
+      // text/plain avoids the CORS preflight Apps Script cannot answer.
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'claim', speed: true, nonce, name: me.name, email: me.email,
+        gameKey: String(g['Game Key']), role: String(g['Open Roles']).toUpperCase() === 'CR' ? 'CR' : 'AR', hp: '',
+      }),
+    });
+    out = await res.json();
+  } catch {
+    out = { ok: false, error: 'could not reach the assignor system — try again' };
+  }
+
+  const roleName = String(g['Open Roles']).toUpperCase() === 'CR' ? 'Referee' : 'AR';
+  if (out.ok) {
+    // Report the game the script ALLOCATED: a listing can stand for several folded games,
+    // so the number and field may differ from the card that was tapped.
+    const got = parseWhen(out.when) || when;
+    const text = `${fmtDay(got)} ${fmtTime(got)} · ${out.venue || g.Venue}${out.field ? ', field ' + out.field : ''} · ${out.ageGroup || g['Age Group']} · ${roleName} · game #${out.matchId || g['Match ID']}`;
+    mine.push({ text, whenMs: got ? got.getTime() : null, at: Date.now(), claimId: out.claimId });
+    store.set('speed.mine', mine);
+    outcomes.set(k, { ok: true, short: '✓ Requested — watch Assignr', game: g });
+    renderMine();
+  } else if (out.reason === 'taken') {
+    outcomes.set(k, { ok: false, short: 'Someone just requested it', game: g });
+    setTimeout(() => { outcomes.delete(k); render(); }, 6000);
+  } else if (/already claimed/i.test(out.error || '')) {
+    outcomes.set(k, { ok: true, short: '✓ Already requested', game: g });
+  } else {
+    if (/stale/i.test(out.error || '')) nonce = null;
+    outcomes.set(k, { ok: false, short: out.error || 'Something went wrong', game: g });
+    setTimeout(() => { outcomes.delete(k); render(); }, 6000);
+  }
+  render();
+  load();
+}
+
+document.title = CONFIG.title;
+renderWho();
+renderMine();
+load();
+setInterval(() => { if (!document.hidden) load(); }, REFRESH_MS);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>
